@@ -1,11 +1,23 @@
-from urllib.parse import urlparse
 import bs4
 import re
 import requests
+import sys
+from urllib.parse import urlparse
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 from openpyxl import Workbook
 from openpyxl.styles import Font
+
+ascii_art = """
+                 __                           ____   _                         _
+ _ __   _   _   / _| _ __   ___   _ __ ___   / ___| | | __ _ __   ___   _   _ | |_  ____
+| '_ \ | | | | | |_ | '__| / _ \ | '_ ` _ \  \___ \ | |/ /| '__| / _ \ | | | || __||_  /
+| |_) || |_| | |  _|| |   | (_) || | | | | |  ___) ||   < | |   | (_) || |_| || |_  / /
+| .__/  \__, | |_|  |_|    \___/ |_| |_| |_| |____/ |_|\_\|_|    \___/  \__,_| \__|/___|
+|_|     |___/
+"""
+
+print(ascii_art)
 
 
 def google_search(product):
@@ -36,13 +48,11 @@ def google_search(product):
     return response
 
 
-url = google_search('Crucial 4GB DDR4-2400MHz')
-
-print(url)
+product = input('Enter the product that you are looking: ')
+url = google_search(product)
 
 opts = Options()
-opts.set_headless()
-assert opts.headless  # Operating in headless mode
+opts.headless = True
 browser = Chrome(options=opts)
 browser.get(url)
 
@@ -56,73 +66,82 @@ names = soup.findAll("a", {"class": "js-product-link content-placeholder"})
 description = soup.find("div", {"class": "simple-description js-description-html"})
 rating = soup.find("div", {"class": "rating-average cf"})
 number_of_users_rating = soup.find("div", {"class": "actual-rating "})
+rating2 = soup.find("a", {"class": "rating big_stars"})
+
+if not prices:
+    print('This product does not exist or you need to provide more information')
+    sys.exit()
+
+# Saving data on Excel
 
 wb = Workbook()
 
-sheet = wb['Sheet']
-
+sheet = wb.create_sheet("Details", 0)
 
 max_width = 0
 for i in range(len(prices)):
+    # Saving in columns 1 and 2, all the prices and the products' names
     sheet.cell(row=i + 2, column=1).value = prices[i].text
     sheet.cell(row=i + 2, column=2).value = names[i].text
-    sheet.cell(row=i + 2, column=2).hyperlink = 'https://www.skroutz.gr' + names[i]['href']
+    sheet.cell(row=i + 2, column=2).hyperlink = 'https://www.skroutz.gr' + names[i]['href']  # Hyperlinks regarding
+    # the names
+    # Adjusting the column B, which contains the names
     if len(names[i].text) > max_width:
         sheet.column_dimensions['B'].width = len(names[i].text)
         max_width = len(names[i].text)
-try:
-    sheet.cell(row=2, column=3).value = rating.text[0:3]
-    sheet.cell(row=2, column=4).value = number_of_users_rating.text
 
+# Saving the rating of the product
+try:
+    sheet.cell(row=2, column=3).value = rating2['title']
+    sheet.column_dimensions['C'].width = len(rating2['title'])
 except:
     sheet.cell(row=2, column=3).value = 'No ratings'
 
-
+# Saving min and max prices, and defining titles
 sheet.cell(row=4, column=3).value = 'Min Price'
 sheet.cell(row=4, column=3).font = Font(bold=True)
-sheet.cell(row=4, column=4).value = 'Max Price'
-sheet.cell(row=4, column=4).font = Font(bold=True)
+sheet.cell(row=6, column=3).value = 'Max Price'
+sheet.cell(row=6, column=3).font = Font(bold=True)
 sheet.cell(row=5, column=3).value = sheet.cell(row=2, column=1).value
-sheet.cell(row=5, column=4).value = sheet.cell(row=i+2, column=1).value
-
+sheet.cell(row=7, column=3).value = sheet.cell(row=i + 2, column=1).value
 
 sheet.cell(row=1, column=1).value = 'Prices'
 sheet.cell(row=1, column=2).value = 'Names'
 sheet.cell(row=1, column=3).value = 'Rating'
-sheet.cell(row=1, column=4).value = '#Voters'
 
 sheet.cell(row=1, column=1).font = Font(bold=True)
 sheet.cell(row=1, column=2).font = Font(bold=True)
 sheet.cell(row=1, column=3).font = Font(bold=True)
-sheet.cell(row=1, column=4).font = Font(bold=True)
 
+# Saving the SPECS
 specs = soup.findAll("div", {"class": "spec-details"})
 k = 1
 max_i = 0
 max_l = 0
 for j in specs:
-    title = j.find("h3", {"class": ""})
-    dt = j.findAll("dt", {"class": ""})
-    span = j.findAll("span", {"class": ""})
-    print(dt)
+    title = j.find("h3", {"class": ""})  # Category name
+    dt = j.findAll("dt", {"class": ""})  # Name of the SPEC
+    span = j.findAll("span", {"class": ""})  # SPECS
     try:
-        sheet.cell(row=k, column=5).value = title.text
-        sheet.cell(row=k, column=5).font = Font(bold=True)
-        k = k + 1
+        sheet.cell(row=k, column=4).value = title.text
+        sheet.cell(row=k, column=4).font = Font(bold=True)
+        k = k + 1  # All data are saved in one column, so we iterate through k rows
     except:
         print("")
     for i, l in zip(dt, span):
         try:
-            sheet.cell(row=k, column=5).value = i.text
-            sheet.cell(row=k, column=6).value = l.text
+            # Saving name and spec
+            sheet.cell(row=k, column=4).value = i.text
+            sheet.cell(row=k, column=5).value = l.text
             k = k + 1
             if len(i.text) > max_i:
-                sheet.column_dimensions['E'].width = len(i.text)
+                sheet.column_dimensions['D'].width = len(i.text)
                 max_i = len(i.text)
             if len(l.text) > max_l:
-                sheet.column_dimensions['F'].width = len(l.text)
+                sheet.column_dimensions['E'].width = len(l.text)
                 max_l = len(l.text)
         except:
             print("")
 
-wb.save('document.xlsx')
+wb.save(product + '.xlsx')
+browser.quit()
